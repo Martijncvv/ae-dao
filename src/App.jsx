@@ -27,7 +27,12 @@ const App = () => {
 	const [memberTokenAmounts, setMemberTokenAmounts] = useState({})
 	const [memberAddresses, setMemberAddresses] = useState([])
 
-	const [proposals, setProposals] = useState([])
+	const [allProposals, setAllProposals] = useState([])
+	const [activeProposals, setActiveProposals] = useState([])
+	const [votedProposals, setVotedProposals] = useState([])
+	const [defeatedProposals, setDefeatedProposals] = useState([])
+	const [executedProposals, setExecutedProposals] = useState([])
+
 	const [isVoting, setIsVoting] = useState(false)
 	const [hasVoted, setHasVoted] = useState(false)
 
@@ -42,42 +47,50 @@ const App = () => {
 		if (!hasClaimedNFT) {
 			return
 		}
-		// Call to voteModule.getAll() to grab the proposals.
+
 		try {
 			const proposals = await voteModule.getAll()
-			setProposals(proposals)
+			setAllProposals(proposals)
 			console.log('🌈 Proposals:', proposals)
+			proposals.map(async (proposal) => {
+				// active
+				if (proposal.state === 1) {
+					let hasVoted = await voteModule.hasVoted(proposal.proposalId, address)
+					if (hasVoted) {
+						setVotedProposals((votedProposals) => [...votedProposals, proposal])
+						console.log('🟣 votedProposals:', votedProposals)
+					} else {
+						setActiveProposals((activeProposals) => [
+							...activeProposals,
+							proposal,
+						])
+						console.log('🔵 ActiveProposals:', activeProposals)
+					}
+				}
+				// Defeated
+				if (proposal.state === 3) {
+					setDefeatedProposals((defeatedProposals) => [
+						...defeatedProposals,
+						proposal,
+					])
+					console.log('🔴  defeatedProposals:', defeatedProposals)
+				}
+				// Executed
+				if (proposal.state === 7) {
+					setExecutedProposals((executedProposals) => [
+						...executedProposals,
+						proposal,
+					])
+					console.log('🟢  executedProposals:', executedProposals)
+				}
+				// state 1: Active
+				// state 3: Defeated
+				// state 7: Executed
+			})
 		} catch (error) {
 			console.log('failed to get proposals', error)
 		}
-	}, [hasClaimedNFT, hasProposed])
-
-	// Check if the user already voted.
-	useEffect(async () => {
-		if (!hasClaimedNFT) {
-			return
-		}
-
-		if (!proposals.length) {
-			return
-		}
-
-		// Check if the user has already voted on the last proposal.
-		try {
-			const hasVoted = await voteModule.hasVoted(
-				proposals[proposals.length - 1].proposalId,
-				address
-			)
-			setHasVoted(hasVoted)
-			if (hasVoted) {
-				console.log('🥵 User has already voted')
-			} else {
-				console.log('🙂 User has not voted yet')
-			}
-		} catch (error) {
-			console.error('Failed to check if wallet has voted', error)
-		}
-	}, [hasClaimedNFT, proposals, address])
+	}, [hasClaimedNFT, hasProposed, hasVoted])
 
 	const shortenAddress = (str) => {
 		return str.substring(0, 6) + '...' + str.substring(str.length - 4)
@@ -166,9 +179,14 @@ const App = () => {
 		return (
 			<div className="landing">
 				<h1>Welcome to AE DAO</h1>
-				<button onClick={() => connectWallet('injected')} className="btn-hero">
-					Connect your wallet
-				</button>
+				<div>
+					<button
+						onClick={() => connectWallet('injected')}
+						className="btn-hero"
+					>
+						Connect your wallet
+					</button>
+				</div>
 			</div>
 		)
 	}
@@ -238,6 +256,7 @@ const App = () => {
 		return (
 			<div className="member-page">
 				<h1>🦋AE DAO Member Page</h1>
+				<p>{address}</p>
 				<p>Congratulations on being a member</p>
 				<div>
 					<div>
@@ -262,7 +281,7 @@ const App = () => {
 						</table>
 					</div>
 
-					{proposals.length > 0 && (
+					{activeProposals.length > 0 && (
 						<div>
 							<h2>Active Proposals</h2>
 							<form
@@ -270,10 +289,12 @@ const App = () => {
 									e.preventDefault()
 									e.stopPropagation()
 
+									setHasVoted(false)
 									setIsVoting(true)
 
 									// Get the votes from the form for the values
-									const votes = proposals.map((proposal) => {
+
+									const votes = activeProposals.map((proposal) => {
 										let voteResult = {
 											proposalId: proposal.proposalId,
 
@@ -333,7 +354,6 @@ const App = () => {
 														}
 													})
 												)
-
 												setHasVoted(true)
 
 												console.log('successfully voted')
@@ -350,12 +370,12 @@ const App = () => {
 									}
 								}}
 							>
-								{proposals.map((proposal, index) => (
-									<div key={proposal.proposalId} className="card">
+								{activeProposals.map((proposal, index) => (
+									<div key={index} className="card">
 										<h5>{proposal.description}</h5>
 										<div>
-											{proposal.votes.map((vote) => (
-												<div key={vote.type}>
+											{proposal.votes.map((vote, index) => (
+												<div key={index}>
 													<input
 														type="radio"
 														id={proposal.proposalId + '-' + vote.type}
@@ -374,20 +394,19 @@ const App = () => {
 										</div>
 									</div>
 								))}
-								<button disabled={isVoting || hasVoted} type="submit">
-									{isVoting
-										? 'Voting...'
-										: hasVoted
-										? 'You Already Voted'
-										: 'Submit Votes'}
-								</button>
-								<small>
-									This will trigger multiple transactions that you will need to
-									sign.
-								</small>
+								<div className="buttonBox">
+									<button disabled={isVoting} type="submit">
+										{isVoting ? 'Voting...' : 'Submit Votes'}
+									</button>
+								</div>
+
+								<p>
+									This will trigger multiple txs that you will need to sign.
+								</p>
 							</form>
 						</div>
 					)}
+
 					{memberTokenAmounts[address] > 0 && (
 						<div>
 							<h2>Propose Vote</h2>
@@ -423,13 +442,116 @@ const App = () => {
 									onClick={() => setProposalInputReason('')}
 								/>
 							</div>
-							<button type="submit" onClick={() => proposeVote()}>
-								{isProposing
-									? 'Proposing...'
-									: hasProposed
-									? 'Successfully proposed'
-									: 'Propose'}
-							</button>
+							<div className="buttonBox">
+								<button type="submit" onClick={() => proposeVote()}>
+									{isProposing
+										? 'Proposing...'
+										: hasProposed
+										? 'Successfully proposed'
+										: 'Propose'}
+								</button>
+							</div>
+						</div>
+					)}
+				</div>
+
+				<div>
+					{votedProposals.length > 0 && (
+						<div>
+							<h2>Already Voted Active Proposals</h2>
+
+							{votedProposals.map((proposal, index) => (
+								<div key={index} className="card">
+									<h5>{proposal.description}</h5>
+									<p>
+										Against:{' '}
+										{Math.round(
+											parseInt(proposal.votes[0].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+									<p>
+										For:{' '}
+										{Math.round(
+											parseInt(proposal.votes[1].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+									<p>
+										Abstain:{' '}
+										{Math.round(
+											parseInt(proposal.votes[2].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+								</div>
+							))}
+						</div>
+					)}
+
+					{defeatedProposals.length > 0 && (
+						<div>
+							<h2>Defeated Proposals</h2>
+
+							{defeatedProposals.map((proposal, index) => (
+								<div key={index} className="card">
+									<h5>{proposal.description}</h5>
+									<p>
+										Against:{' '}
+										{Math.round(
+											parseInt(proposal.votes[0].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+									<p>
+										For:{' '}
+										{Math.round(
+											parseInt(proposal.votes[1].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+									<p>
+										Abstain:{' '}
+										{Math.round(
+											parseInt(proposal.votes[2].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+								</div>
+							))}
+						</div>
+					)}
+
+					{executedProposals.length > 0 && (
+						<div>
+							<h2>Executed Proposals</h2>
+
+							{executedProposals.map((proposal, index) => (
+								<div key={index} className="card">
+									<h5>{proposal.description}</h5>
+									<p>
+										Against:{' '}
+										{Math.round(
+											parseInt(proposal.votes[0].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+									<p>
+										For:{' '}
+										{Math.round(
+											parseInt(proposal.votes[1].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+									<p>
+										Abstain:{' '}
+										{Math.round(
+											parseInt(proposal.votes[2].count.toString()) /
+												(10 * 10 ** 17)
+										)}
+									</p>
+								</div>
+							))}
 						</div>
 					)}
 				</div>
@@ -441,9 +563,11 @@ const App = () => {
 		<div className="landing">
 			<h1>Welcome to AE DAO</h1>
 			<h2>Mint your free 🦋AE DAO Membership NFT</h2>
-			<button disabled={isClaiming} onClick={() => mintNft()}>
-				{isClaiming ? 'Minting...' : 'Mint your nft (FREE)'}
-			</button>
+			<div>
+				<button disabled={isClaiming} onClick={() => mintNft()}>
+					{isClaiming ? 'Minting...' : 'Mint your nft (FREE)'}
+				</button>
+			</div>
 			<p>*Claim free Rinkeby testnet ETH</p>
 			<a href="https://faucets.chain.link/rinkeby" target="_blank">
 				Rinkeby Faucet
@@ -453,3 +577,7 @@ const App = () => {
 }
 
 export default App
+
+// state 7: Executed
+// state 3: Defeated
+// state 0: Active

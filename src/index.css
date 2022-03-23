@@ -47,7 +47,8 @@ h1 {
 .mint-nft,
 .member-page {
 	flex-direction: column;
-	width: 960px;
+
+	width: 70%;
 	max-width: calc(100% - 1rem);
 	padding-left: 0.5rem;
 	padding-right: 0.5rem;
@@ -107,6 +108,8 @@ h1 {
 }
 
 .card {
+	width: 400px;
+	box-sizing: border-box;
 	background-color: #fff;
 	padding: 1rem;
 	border-radius: 1rem;
@@ -114,7 +117,15 @@ h1 {
 	box-shadow: 3.1px 6.2px 6.2px hsl(0deg 0% 0% / 0.4);
 }
 
+.buttonBox {
+	display: flex;
+	width: 400px;
+	justify-content: center;
+	align-items: center;
+}
+
 button {
+	width: 300px;
 	cursor: pointer;
 	background-color: #000;
 	color: #fff;
